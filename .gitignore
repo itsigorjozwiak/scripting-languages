@@ -1,0 +1,39 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ===== Perl =====
+blib/
+_build/
+cover_db/
+MYMETA.json
+MYMETA.yml
+
+# ===== IDE / Editors =====
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ===== Temporary / Backup files =====
+*.tmp
+*.bak
+
+# ===== Local configuration =====
+.env
+.env.*
+!.env.example
+
+# ===== OS files =====
+.DS_Store
+Thumbs.db
+desktop.ini
