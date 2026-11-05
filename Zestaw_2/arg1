@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+# Igor Jóźwiak
+
+LC_ALL=C
+export LC_ALL
+
+printf -v alfabet '%s' {a..z}
+opcje=":${alfabet//i/i:}"
+opcje=${opcje//o/o:}
+
+czy_q=0
+brak_pliku=0
+declare -A obecne=()
+declare -A pliki=()
+oryginalne=("$@")
+OPTIND=1
+
+while getopts "$opcje" opcja; do
+    case "$opcja" in
+        q)
+            czy_q=1 ;;
+        i|o)
+            obecne[$opcja]=1
+            if (( ${#OPTARG} == 0 )) || [[ "$OPTARG" == -* ]]; then
+                brak_pliku=1
+                if [[ "$OPTARG" == -*q* ]]; then
+                    czy_q=1
+                fi
+                if [[ $OPTARG == -* && ${oryginalne[OPTIND-2]} == "$OPTARG" ]]; then
+                (( OPTIND -= 1 ))
+                fi
+            else
+                pliki[$opcja]=$OPTARG
+            fi ;;
+        :)
+            brak_pliku=1 ;;
+        [a-z])
+            obecne[$opcja]=1 ;;
+        #\?)
+        #   tutaj wpadalyby nieokreslone oraz dlugie opcje
+        #   ;;
+    esac
+done
+
+if (( czy_q )); then
+    printf 'Unsupported option: -q\n'
+    exit 0
+fi
+
+if (( brak_pliku )); then
+    printf '%s\n' '-i -o options require a filename'
+    exit 0
+fi
+
+for litera in {a..z}; do
+    if [[ ${obecne[$litera]-} == 1 ]]; then
+        if [[ $litera == i || $litera == o ]]; then
+            printf -- '-%s present and set to "%s"\n' "$litera" "${pliki[$litera]}"
+        else
+            printf -- '-%s present\n' "$litera"
+        fi
+    fi
+done
+
+shift "$((OPTIND - 1))"
+if (( $# > 0 )); then
+    printf 'Arguments are:\n'
+    numer=1
+    for argument in "$@"; do
+        printf '$%d=%s\n' "$numer" "$argument"
+        (( numer += 1 ))
+    done
+fi

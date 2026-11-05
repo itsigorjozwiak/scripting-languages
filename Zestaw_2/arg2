@@ -1,0 +1,135 @@
+#!/usr/bin/env bash
+# Igor Jóźwiak
+
+LC_ALL=C
+export LC_ALL
+
+unset GETOPT_COMPATIBLE POSIXLY_CORRECT
+
+printf -v alfabet '%s' {a..z}
+opcje="${alfabet//i/i:}"
+opcje=${opcje//o/o:}
+
+pomoc() {
+    cat <<'KONIEC'
+Usage: ./arg2 [OPTIONS] [ARGUMENTS]
+
+Options:
+  -i FILE      input file
+  -o FILE      output file
+  -q           unsupported option
+  --help       display this help and exit
+KONIEC
+}
+
+oryginalne=("$@")
+czy_pomoc=0
+czy_q=0
+brak_pliku=0
+indeks=0
+
+while (( indeks < ${#oryginalne[@]} )); do
+    elmt=${oryginalne[indeks]}
+
+    [[ $elmt == -- ]] && break
+    if [[ $elmt == --help ]]; then
+        czy_pomoc=1
+        (( indeks += 1 ))
+        continue
+    fi
+    [[ $elmt == --* ]] && { (( indeks += 1 )); continue; }
+    [[ $elmt != -?* ]] && break
+
+    opcja=${elmt:1}
+    for (( j=0; j<${#opcja}; j++ )); do
+        litera=${opcja:j:1}
+        case "$litera" in
+            q)
+                czy_q=1 ;;
+            i|o)
+                if (( j + 1 < ${#opcja} )); then
+                    wartosc=${opcja:j+1}
+                    if [[ $wartosc == -* && $wartosc != - ]]; then
+                        brak_pliku=1
+                    fi
+                elif (( indeks + 1 == ${#oryginalne[@]} )); then
+                    brak_pliku=1
+                else
+                    nastepny=${oryginalne[indeks+1]}
+                    if [[ ${#nastepny} == 0 ]]; then
+                        brak_pliku=1
+                        (( indeks += 1 ))
+                    elif [[ $nastepny == -* && $nastepny != - ]]; then
+                        brak_pliku=1
+                    else
+                        (( indeks += 1 ))
+                    fi
+                fi
+                break
+                ;;
+        esac
+    done
+    (( indeks += 1 ))
+done
+
+if (( czy_pomoc )); then
+    pomoc
+    exit 0
+fi
+
+if (( czy_q )); then
+    printf 'Unsupported option: -q\n'
+    exit 0
+fi
+
+if (( brak_pliku )); then
+    printf '%s\n' '-i -o options require a filename'
+    exit 0
+fi
+
+if sparsowane=$(getopt -s bash -o "+$opcje" -l help -- "$@"); then
+    eval "set -- $sparsowane"
+else
+    exit 2
+fi
+
+declare -A obecne=()
+declare -A pliki=()
+
+while true; do
+    case "$1" in
+        -i|-o)
+            litera=${1#-}
+            obecne[$litera]=1
+            pliki[$litera]=$2
+            shift 2 ;;
+        -[a-z])
+            litera=${1#-}
+            obecne[$litera]=1
+            shift ;;
+        --)
+            shift
+            break ;;
+        *)
+            exit 2 ;;
+    esac
+done
+
+for litera in {a..z}; do
+    if [[ ${obecne[$litera]-} == 1 ]]; then
+        if [[ $litera == i || $litera == o ]]; then
+            printf -- '-%s present and set to "%s"\n' "$litera" "${pliki[$litera]}"
+        else
+            printf -- '-%s present\n' "$litera"
+        fi
+    fi
+done
+
+if (( $# > 0 )); then
+    printf 'Arguments are:\n'
+    numer=1
+    for argument in "$@"; do
+        printf '$%d=%s\n' "$numer" "$argument"
+        (( numer += 1 ))
+    done
+fi
