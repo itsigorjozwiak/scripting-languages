@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Igor Jóźwiak
+
+katalog="$1"
+
+if [[ "$katalog" == -* ]]; then
+    katalog="./$katalog"
+fi
+
+tmp_wejscie=$(mktemp ./tmp_in.XXXXXX) || exit 1
+tmp_wynik=$(mktemp ./tmp_out.XXXXXX) || exit 1
+trap 'rm -f "$tmp_wejscie" "$tmp_wynik"' EXIT
+
+find "$katalog" -type f -print0 > "$tmp_wejscie"
+
+prefix="${katalog%/}"
+
+while IFS= read -r -d '' plik; do
+    wzgledna="${plik#"$prefix"/}"
+    wzgledna="${wzgledna#./}"
+
+    hex=$(printf '%s' "$wzgledna" | od -An -v -tx1 | tr -d ' \n')
+    rozmiar=$(stat -c "%s" -- "$plik")
+    suma_raw=$(md5sum < "$plik")
+    md5="${suma_raw:0:32}"
+
+    printf '%s\t%s\t%s\n' "$hex" "$rozmiar" "$md5" >> "$tmp_wynik"
+done < "$tmp_wejscie"
+
+sort -k1,1 "$tmp_wynik"

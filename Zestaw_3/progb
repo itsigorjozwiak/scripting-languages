@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Igor Jóźwiak
+
+tmp_wejscie=$(mktemp ./tmp_in.XXXXXX) || exit 1
+tmp_wynik=$(mktemp ./tmp_out.XXXXXX) || exit 1
+trap 'rm -f "$tmp_wejscie" "$tmp_wynik"' EXIT
+
+cat > "$tmp_wejscie"
+
+while IFS= read -r -d '' plik; do
+    hex=$(printf '%s' "$plik" | od -An -v -tx1 | tr -d ' \n')
+    sciezka="$plik"
+
+    if [[ "$plik" == -* ]]; then
+        sciezka="./$plik"
+    fi
+    
+    rozmiar=$(stat -c "%s" -- "$sciezka")
+    suma_raw=$(md5sum < "$plik")
+    md5="${suma_raw:0:32}"
+    printf '%s\t%s\t%s\n' "$hex" "$rozmiar" "$md5" >> "$tmp_wynik"
+done < "$tmp_wejscie"
+
+sort -k1,1 "$tmp_wynik"
