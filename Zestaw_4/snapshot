@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# Igor Jóźwiak
+
+set -o pipefail
+
+if [ "$#" -ne 3 ]; then
+    printf 'Uzycie: %s SRC PREV DEST\n' "$0" >&2
+    exit 1
+fi
+
+src="$1"
+prev="$2"
+dest="$3"
+
+while [ "$src" != "/" ] && [ "${src%/}" != "$src" ]; do src="${src%/}"; done
+while [ "$prev" != "/" ] && [ "${prev%/}" != "$prev" ]; do prev="${prev%/}"; done
+while [ "$dest" != "/" ] && [ "${dest%/}" != "$dest" ]; do dest="${dest%/}"; done
+
+if [ -z "$src" ] || [ -z "$prev" ] || [ -z "$dest" ]; then
+    printf 'Blad: pusta sciezka argumentu\n' >&2
+    exit 1
+fi
+
+if [ ! -d "$src" ]; then
+    printf 'Blad: katalog SRC nie istnieje: %s\n' "$src" >&2
+    exit 1
+fi
+
+if [ "$prev" != "-" ] && [ ! -d "$prev" ]; then
+    printf 'Blad: katalog PREV nie istnieje: %s\n' "$prev" >&2
+    exit 1
+fi
+
+if [ -e "$dest" ] || [ -L "$dest" ]; then
+    printf 'Blad: katalog DEST juz istnieje: %s\n' "$dest" >&2
+    exit 1
+fi
+
+encode_hex() {
+    printf '%s' "$1" | od -An -v -tx1 | tr -d ' \n'
+}
+
+get_size() {
+    stat -c '%s' -- "$1" 2>/dev/null || stat -f '%z' -- "$1"
+}
+
+if ! mkdir -- "$dest"; then
+    printf 'Blad: nie udalo sie utworzyc katalogu DEST: %s\n' "$dest" >&2
+    exit 1
+fi
+
+{
+    find "$src" -mindepth 1 -type d -print0 | while IFS= read -r -d '' dir_path; do
+        if [ "$src" = "/" ]; then
+            rel="${dir_path#/}"
+        else
+            rel="${dir_path#"$src"/}"
+        fi
+        mkdir -p -- "$dest/$rel" || exit 1
+        hex=$(encode_hex "$rel")
+        printf 'DIR\t%s\n' "$hex"
+    done || exit 1
+
+    find "$src" -type f -print0 | while IFS= read -r -d '' file_path; do
+        if [ "$src" = "/" ]; then
+            rel="${file_path#/}"
+        else
+            rel="${file_path#"$src"/}"
+        fi
+        hex=$(encode_hex "$rel")
+        size=$(get_size "$src/$rel")
+
+        if [ "$prev" != "-" ] && [ ! -L "$prev/$rel" ] && [ -f "$prev/$rel" ] && cmp -s -- "$src/$rel" "$prev/$rel"; then
+            ln -- "$prev/$rel" "$dest/$rel" || exit 1
+            printf 'LINK\t%s\t%s\n' "$hex" "$size"
+        else
+            cp -- "$src/$rel" "$dest/$rel" || exit 1
+            printf 'COPY\t%s\t%s\n' "$hex" "$size"
+        fi
+    done || exit 1
+} | LC_ALL=C sort -t $'\t' -k2,2
